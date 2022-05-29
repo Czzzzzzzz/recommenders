@@ -17,6 +17,7 @@ try:
     from recommenders.models.deeprec.io.dkn_iterator import DKNTextIterator
     from recommenders.models.deeprec.io.sequential_iterator import SequentialIterator
     from recommenders.models.deeprec.models.sequential.sli_rec import SLI_RECModel
+    from recommenders.models.deeprec.models.sequential.din import DIN_RECModel
     from recommenders.models.deeprec.models.sequential.sum import SUMModel
     from recommenders.datasets.amazon_reviews import (
         download_and_extract,
@@ -181,7 +182,6 @@ def test_model_slirec(deeprec_resource_path, deeprec_config_path):
     )
     assert model.predict(test_file, output_file) is not None
 
-
 @pytest.mark.smoke
 @pytest.mark.gpu
 @pytest.mark.deeprec
@@ -271,3 +271,68 @@ def test_model_lightgcn(deeprec_resource_path, deeprec_config_path):
     model.infer_embedding(user_file, item_file)
     assert os.path.getsize(user_file) != 0
     assert os.path.getsize(item_file) != 0
+
+@pytest.mark.smoke
+@pytest.mark.gpu
+@pytest.mark.deeprec
+@pytest.mark.sequential
+def test_model_din(deeprec_resource_path, deeprec_config_path):
+    data_path = os.path.join(deeprec_resource_path, "slirec")
+    yaml_file = os.path.join(deeprec_config_path, "din.yaml")
+    train_file = os.path.join(data_path, r"train_data")
+    valid_file = os.path.join(data_path, r"valid_data")
+    test_file = os.path.join(data_path, r"test_data")
+    output_file = os.path.join(data_path, "output.txt")
+    train_num_ngs = (
+        4  # number of negative instances with a positive instance for training
+    )
+    valid_num_ngs = (
+        4  # number of negative instances with a positive instance for validation
+    )
+    test_num_ngs = (
+        9  # number of negative instances with a positive instance for testing
+    )
+
+    if not os.path.exists(train_file):
+        user_vocab = os.path.join(data_path, r"user_vocab.pkl")
+        item_vocab = os.path.join(data_path, r"item_vocab.pkl")
+        cate_vocab = os.path.join(data_path, r"category_vocab.pkl")
+        reviews_name = "reviews_Movies_and_TV_5.json"
+        meta_name = "meta_Movies_and_TV.json"
+        reviews_file = os.path.join(data_path, reviews_name)
+        meta_file = os.path.join(data_path, meta_name)
+        sample_rate = (
+            0.005  # sample a small item set for training and testing here for example
+        )
+
+        input_files = [
+            reviews_file,
+            meta_file,
+            train_file,
+            valid_file,
+            test_file,
+            user_vocab,
+            item_vocab,
+            cate_vocab,
+        ]
+        download_and_extract(reviews_name, reviews_file)
+        download_and_extract(meta_name, meta_file)
+        data_preprocessing(
+            *input_files,
+            sample_rate=sample_rate,
+            valid_num_ngs=valid_num_ngs,
+            test_num_ngs=test_num_ngs
+        )
+
+    hparams = prepare_hparams(
+        yaml_file, learning_rate=0.01, epochs=3, train_num_ngs=train_num_ngs
+    )  # confirm train_num_ngs before initializing a SLi_Rec model.
+    assert hparams is not None
+
+    input_creator = SequentialIterator
+    model = DIN_RECModel(hparams, input_creator)
+    assert model.run_eval(valid_file, num_ngs=valid_num_ngs) is not None
+    assert isinstance(
+        model.fit(train_file, valid_file, valid_num_ngs=valid_num_ngs), BaseModel
+    )
+    assert model.predict(test_file, output_file) is not None

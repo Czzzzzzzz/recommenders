@@ -9,6 +9,7 @@ from recommenders.datasets.amazon_reviews import (
     data_preprocessing,
 )
 from recommenders.datasets.python_splitters import python_stratified_split
+from recommenders.models.deeprec.deeprec_utils import HParams
 
 try:
     from recommenders.models.deeprec.DataModel.ImplicitCF import ImplicitCF
@@ -34,6 +35,8 @@ try:
     from recommenders.models.deeprec.models.xDeepFM import XDeepFMModel
 except ImportError:
     pass  # skip this import if we are in cpu environment
+
+from recommenders.models.deeprec.models.sequential.din import DIN_RECModel
 
 
 @pytest.mark.gpu
@@ -230,6 +233,33 @@ def test_slirec_component_definition(sequential_files, deeprec_config_path):
     assert model.update is not None
     assert model.iterator is not None
 
+@pytest.mark.gpu
+def test_din_component_definition(sequential_files, deeprec_config_path):
+    yaml_file = os.path.join(deeprec_config_path, "din.yaml")
+    data_path, user_vocab, item_vocab, cate_vocab = sequential_files
+
+    hparams = prepare_hparams(
+        yaml_file,
+        train_num_ngs=4,
+        embed_l2=0.0,
+        layer_l2=0.0,
+        learning_rate=0.001,
+        epochs=1,
+        MODEL_DIR=os.path.join(data_path, "model"),
+        SUMMARIES_DIR=os.path.join(data_path, "summary"),
+        user_vocab=user_vocab,
+        item_vocab=item_vocab,
+        cate_vocab=cate_vocab,
+        need_sample=True,
+       
+    )
+    assert hparams is not None
+    model = DIN_RECModel(hparams, SequentialIterator)
+    
+    assert model.logit is not None
+    assert model.update is not None
+    assert model.iterator is not None
+   
 
 @pytest.mark.gpu
 def test_nextitnet_component_definition(sequential_files, deeprec_config_path):

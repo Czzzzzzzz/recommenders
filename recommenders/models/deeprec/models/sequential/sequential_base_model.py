@@ -327,7 +327,7 @@ class SequentialBaseModel(BaseModel):
         )
         self.embed_params.append(involved_cate_embedding)
 
-        self.target_item_embedding = tf.concat(
+        self.target_item_embedding = tf.concat( # [batch_size, embed_size]
             [self.item_embedding, self.cate_embedding], -1
         )
         tf.compat.v1.summary.histogram(
