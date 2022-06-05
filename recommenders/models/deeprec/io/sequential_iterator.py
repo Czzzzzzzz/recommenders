@@ -323,7 +323,7 @@ class SequentialIterator(BaseIterator):
 
             history_lengths = [len(item_history_batch[i]) for i in range(instance_cnt)]
             max_seq_length_batch = self.max_seq_length
-            item_history_batch_all = np.zeros(
+            item_history_batch_all = np.zeros( # Note(caozheng): item list is padded here.
                 (instance_cnt * (batch_num_ngs + 1), max_seq_length_batch)
             ).astype("int32")
             item_cate_history_batch_all = np.zeros(

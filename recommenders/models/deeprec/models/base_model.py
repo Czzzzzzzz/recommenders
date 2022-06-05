@@ -236,7 +236,7 @@ class BaseModel:
                     labels=tf.reshape(self.iterator.labels, [-1]),
                 )
             )
-        elif self.hparams.loss == "softmax":
+        elif self.hparams.loss == "softmax": # Note(caozheng): in-batch softmax?
             group = self.train_num_ngs + 1
             logits = tf.reshape(self.logit, (-1, group))
             if self.hparams.model_type == "NextItNet":
@@ -334,9 +334,9 @@ class BaseModel:
         """
         if layer_idx >= 0 and self.hparams.user_dropout:
             logit = self._dropout(logit, self.layer_keeps[layer_idx])
-        return self._activate(logit, activation)
+        return self._activate(logit, activation, name="fcn_layer_" + str(layer_idx))
 
-    def _activate(self, logit, activation):
+    def _activate(self, logit, activation, name=''):
         if activation == "sigmoid":
             return tf.nn.sigmoid(logit)
         elif activation == "softmax":
@@ -349,8 +349,33 @@ class BaseModel:
             return tf.nn.elu(logit)
         elif activation == "identity":
             return tf.identity(logit)
+        elif activation == "leaky_relu":
+            return tf.nn.leaky_relu(logit)
+        elif activation == "dice":
+            return self._dice(logit, name=name)
         else:
             raise ValueError("this activations not defined {0}".format(activation))
+
+    def _dice(self, _x, axis=-1, epsilon=1e-8, name=''):
+        with tf.compat.v1.variable_scope(name, reuse=tf.compat.v1.AUTO_REUSE):
+            alphas = tf.compat.v1.get_variable(name + '_alpha', _x.get_shape()[-1], initializer=tf.constant_initializer(0.0))
+            input_shape = list(_x.get_shape())
+            reduction_axes = list(range(len(input_shape)))
+            del reduction_axes[axis]
+            broadcast_shape = [1] * len(input_shape)
+            broadcast_shape[axis] = input_shape[axis]           
+
+        # case: train mode (uses stats of the current batch)
+        mean = tf.reduce_mean(_x, axis=reduction_axes)
+        brodcast_mean = tf.reshape(mean, broadcast_shape)
+        std = tf.reduce_mean(tf.square(_x - brodcast_mean) + epsilon, axis=reduction_axes)
+        std = tf.sqrt(std)
+        brodcast_std = tf.reshape(std, broadcast_shape)
+        x_normed = (_x - brodcast_mean) / (brodcast_std + epsilon)
+        # x_normed = tf.layers.batch_normalization(_x, center=False, scale=False)
+        x_p = tf.sigmoid(x_normed)
+
+        return alphas * (1.0 - x_p) * _x + x_p * _x        
 
     def _dropout(self, logit, keep_prob):
         """Apply drops upon the input value.

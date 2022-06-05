@@ -114,7 +114,7 @@ class SLI_RECModel(SequentialBaseModel):
                 name="attention_mat",
                 shape=[user_embedding.shape.as_list()[-1], query_size],
                 initializer=self.initializer,
-            )
+            ) # [embedding_size, embedding_size]
             att_inputs = tf.tensordot(user_embedding, attention_mat, [[2], [0]])
 
             queries = tf.reshape(

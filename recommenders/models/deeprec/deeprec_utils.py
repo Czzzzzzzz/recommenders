@@ -258,6 +258,22 @@ def check_nn_config(f_config):
             "kernel_size",
             "min_seq_length",
         ]
+    elif f_config["model_type"] in [
+        "din"
+    ]:
+         required_parameters = [
+            "item_embedding_dim",
+            "cate_embedding_dim",
+            "max_seq_length",
+            "loss",
+            "method",
+            "user_vocab",
+            "item_vocab",
+            "cate_vocab",
+            "attention_size",
+            "hidden_size",
+            "att_fcn_layer_sizes"
+        ]
     else:
         required_parameters = []
 
