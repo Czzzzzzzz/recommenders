@@ -350,13 +350,18 @@ class BaseModel:
         elif activation == "identity":
             return tf.identity(logit)
         elif activation == "leaky_relu":
-            return tf.nn.leaky_relu(logit)
+            return tf.nn.leaky_relu(logit, alpha=0.01)
         elif activation == "dice":
             return self._dice(logit, name=name)
         else:
             raise ValueError("this activations not defined {0}".format(activation))
 
     def _dice(self, _x, axis=-1, epsilon=1e-8, name=''):
+
+        hparams = self.hparams
+
+        momentum = 0.99 if hparams.dice_momentum is None else hparams.dice_momentum
+
         with tf.compat.v1.variable_scope(name, reuse=tf.compat.v1.AUTO_REUSE):
             alphas = tf.compat.v1.get_variable(name + '_alpha', _x.get_shape()[-1], initializer=tf.constant_initializer(0.0))
             input_shape = list(_x.get_shape())
@@ -371,7 +376,21 @@ class BaseModel:
         std = tf.reduce_mean(tf.square(_x - brodcast_mean) + epsilon, axis=reduction_axes)
         std = tf.sqrt(std)
         brodcast_std = tf.reshape(std, broadcast_shape)
-        x_normed = (_x - brodcast_mean) / (brodcast_std + epsilon)
+
+        ema = tf.compat.v1.train.ExponentialMovingAverage(decay=momentum)
+        ema_apply_op = tf.compat.v1.cond(self.is_train_stage,
+                                         lambda: ema.apply([brodcast_mean, brodcast_std]),
+                                         lambda: tf.no_op())
+        
+        def mean_var_with_update():
+            with tf.control_dependencies([ema_apply_op]):
+                return tf.identity(brodcast_mean), tf.identity(brodcast_std)
+
+        mean, var = tf.compat.v1.cond(self.is_train_stage,
+                                      mean_var_with_update,
+                                      lambda: (ema.average(brodcast_mean), ema.average(brodcast_std)))
+
+        x_normed = (_x - mean) / (var + epsilon)
         # x_normed = tf.layers.batch_normalization(_x, center=False, scale=False)
         x_p = tf.sigmoid(x_normed)
 

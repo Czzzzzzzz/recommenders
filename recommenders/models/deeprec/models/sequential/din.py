@@ -78,9 +78,12 @@ class DIN_RECModel(SequentialBaseModel):
                 attention_logits = tf.squeeze(att_fnc_output, -1)
 
             mask_paddings = tf.ones_like(attention_logits) * (-(2 ** 32) + 1)
-            attention_weights = tf.math.softmax(
-                tf.where(boolean_mask, attention_logits, mask_paddings), axis=-1
-            ) #[batch_size, sequence]
+            if hparams.enable_softmax:
+                attention_weights = tf.math.softmax(
+                    tf.where(boolean_mask, attention_logits, mask_paddings), axis=-1
+                ) #[batch_size, sequence]
+            else:
+                attention_weights = attention_logits
             weighted_sum = tf.reduce_sum(
                 tf.multiply(tf.expand_dims(attention_weights, -1), value), axis=-2
             ) # [batch_size, emb]
